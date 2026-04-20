@@ -1,0 +1,20 @@
+# Core data
+pandas>=2.0
+pyarrow>=14.0
+numpy>=1.26
+
+# S3 / NREL data access
+boto3>=1.34
+botocore>=1.34
+
+# Geocoding (offline reverse geocoder, no API key needed)
+reverse_geocoder>=1.5.1
+us>=3.1.0
+
+# Dashboard
+streamlit>=1.35
+plotly>=5.20
+
+# HTTP (used by scraper, kept for consistency)
+requests>=2.31
+urllib3>=2.0

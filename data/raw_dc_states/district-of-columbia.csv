@@ -1,0 +1,8 @@
+Name,State,Latitude,Longitude,IT Load (MW),PUE,Website,Source URL
+CoreSite D.C. (DC1),district-of-columbia,38.902456,-77.030168,,,https://www.coresite.com/data-center-locations/northern-virginia?utm_source=datacentermap.com,https://www.datacentermap.com/usa/district-of-columbia/washington-dc/1275k-street/
+CoreSite D.C. (DC2),district-of-columbia,38.9034043,-77.0311687,,,https://www.coresite.com/data-center-locations/northern-virginia-washington-dc?utm_source=datacentermap.com,https://www.datacentermap.com/usa/district-of-columbia/washington-dc/coresite-dc2/
+"Cogent Data Center - Washington, DC 1",district-of-columbia,38.904414,-77.032651,0.5,,https://www.cogentco.com/en/cogent-dc?utm_source=datacentermap.com,https://www.datacentermap.com/usa/district-of-columbia/washington-dc/cogent-washington/
+"Cogent Data Center - Washington, DC 2",district-of-columbia,38.9034439,-77.0407946,2.2,,https://www.cogentco.com/en/cogent-dc?utm_source=datacentermap.com,https://www.datacentermap.com/usa/district-of-columbia/washington-dc/cogent-data-center-washington-dc/
+1120 Vermont Avenue NW,district-of-columbia,38.9048448,-77.0330587,,,https://www.scherman.net/portfolio/#1120vermont?utm_source=datacentermap.com,https://www.datacentermap.com/usa/district-of-columbia/washington-dc/1120-vermont-avenue-nw/
+DataBank - 2100 M St,district-of-columbia,38.9050344,-77.0468412,,,https://www.databank.com/?utm_source=datacentermap.com,https://www.datacentermap.com/usa/district-of-columbia/washington-dc/zcolo-2100-m-street/
+Lumen Washington DC 2,district-of-columbia,38.9033549,-77.0290561,,,https://www.lumen.com/?utm_source=datacentermap.com,https://www.datacentermap.com/usa/district-of-columbia/washington-dc/level3-washington-dc2/
