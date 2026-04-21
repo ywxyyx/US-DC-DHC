@@ -1,0 +1,12 @@
+Name,State,Latitude,Longitude,IT Load (MW),PUE,Website,Source URL,Space Type,Classification_Source,Annual_Heat_MWh
+FirstLight Portland,maine,43.6577998,-70.261218,1.0,1.91,https://www.firstlight.net/portland-me-data-center/?utm_source=datacentermap.com,https://www.datacentermap.com/usa/maine/portland-mn/firstlight-portland/,Small,P4,7884.0
+CENTRA Portland (PWM1),maine,43.657789,-70.2612024,5.0,1.91,https://www.centradigital.com/locations/?utm_source=datacentermap.com,https://www.datacentermap.com/usa/maine/portland-mn/cadc-portland/,Small,P1,39420.0
+FirstLight Brunswick,maine,43.8950296,-69.9230964,1.0,1.91,https://www.firstlight.net/?utm_source=datacentermap.com,https://www.datacentermap.com/usa/maine/brunswick/oxford-networks-data-center/,Small,P4,7884.0
+Maine Yankee Nuclear Plant DC Project,maine,43.95641202813458,-69.69473871686502,1.0,1.91,,https://www.datacentermap.com/usa/maine/brunswick/maine-yankee-nuclear-plant-dc-project/,Small,P4,7884.0
+EnablesIT Data Center,maine,43.9073683,-69.9969657,20.0,1.14,https://www.enablesit.com/?utm_source=datacentermap.com,https://www.datacentermap.com/usa/maine/brunswick/nexus-management/,AI Specialized,P3,157680.0
+LiquidCool Loring,maine,46.93750935916671,-67.89358972130505,50.0,1.22,https://liquidcoolsolutions.com/?utm_source=datacentermap.com,https://www.datacentermap.com/usa/maine/caribou/liquidcool-loring/,Hyperscale,P1,394200.0
+MillCompute LLC,maine,44.09436716025149,-70.21860867300832,1.0,1.91,,https://www.datacentermap.com/usa/maine/lewiston/millcompute-llc/,Small,P4,7884.0
+FirstLight Bangor,maine,44.7959909,-68.7723439,1.0,1.91,https://www.firstlight.net/bangor-me-data-center/?utm_source=datacentermap.com,https://www.datacentermap.com/usa/maine/bangor/firstlight-bangor/,Small,P4,7884.0
+Sentinel Maine,maine,44.50874428225416,-70.24003267991884,1.0,1.91,https://sentineldatacenters.com/?utm_source=datacentermap.com,https://www.datacentermap.com/usa/maine/farmington/sentinel-maine/,Small,P4,7884.0
+Pioneer Broadband DataCenter,maine,46.6816923,-68.0153441,1.0,1.91,https://www.pioneerbroadband.net?utm_source=datacentermap.com,https://www.datacentermap.com/usa/maine/northern-maine/pioneer-broadband-datacenter/,Small,P4,7884.0
+Nautilus East Millinocket,maine,45.62311608273001,-68.57445529479483,1.0,1.91,https://nautilusdt.com/?utm_source=datacentermap.com,https://www.datacentermap.com/usa/maine/millinocket/nautilus-east-millinocket/,Small,P4,7884.0

@@ -18,14 +18,17 @@ logger = logging.getLogger(__name__)
 # Canonical column names  →  accepted aliases  (all lower-case for matching)
 # ---------------------------------------------------------------------------
 COLUMN_ALIASES: dict[str, list[str]] = {
-    "name":        ["name", "dc_name", "datacenter_name", "facility"],
-    "state":       ["state", "state_slug", "state_name"],
-    "latitude":    ["latitude", "lat", "y", "lat_deg"],
-    "longitude":   ["longitude", "lon", "long", "lng", "x", "lon_deg"],
-    "it_load_mw":  ["it load (mw)", "it_load_mw", "it_load", "mw", "capacity_mw"],
-    "pue":         ["pue", "power_usage_effectiveness"],
-    "website":     ["website", "url", "web", "homepage"],
-    "source_url":  ["source url", "source_url", "scrape_url", "page_url"],
+    "name":                  ["name", "dc_name", "datacenter_name", "facility"],
+    "state":                 ["state", "state_slug", "state_name"],
+    "latitude":              ["latitude", "lat", "y", "lat_deg"],
+    "longitude":             ["longitude", "lon", "long", "lng", "x", "lon_deg"],
+    "it_load_mw":            ["it load (mw)", "it_load_mw", "it_load", "mw", "capacity_mw"],
+    "pue":                   ["pue", "power_usage_effectiveness"],
+    "website":               ["website", "url", "web", "homepage"],
+    "source_url":            ["source url", "source_url", "scrape_url", "page_url"],
+    # Produced by src/classifier.py — present in processed_dc_states/*.csv
+    "space_type":            ["space type", "space_type"],
+    "classification_source": ["classification_source", "classification source"],
 }
 
 

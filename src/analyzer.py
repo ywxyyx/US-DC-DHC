@@ -37,25 +37,24 @@ logger = logging.getLogger(__name__)
 _HERE = Path(__file__).parent
 PROJECT_ROOT = _HERE.parent
 
-DEFAULT_RAW_DIR     = PROJECT_ROOT / "data" / "raw_dc_states"
+# Default source is now the classifier output (processed_dc_states/), which has
+# 100% IT Load / PUE coverage via LBNL-2024 archetype imputation.
+DEFAULT_RAW_DIR     = PROJECT_ROOT / "data" / "processed_dc_states"
 DEFAULT_NREL_CSV    = PROJECT_ROOT / "data" / "nrel" / "county_space_heating_cooling.csv"
 DEFAULT_OUTPUT_CSV  = PROJECT_ROOT / "processed" / "us_county_analysis.csv"
+DEFAULT_DC_PARQUET  = PROJECT_ROOT / "processed" / "us_dc_level.parquet"
 DEFAULT_CACHE_DIR   = PROJECT_ROOT / "data" / "nrel"   # reuse for Census gazetteer
 
-
-# ---------------------------------------------------------------------------
-# Step 1 — fill missing PUE with national median
-# ---------------------------------------------------------------------------
-_DEFAULT_PUE = 1.58   # US average PUE (Uptime Institute 2022)
+# Canonical Space Type ordering (matches classifier.ARCHETYPES)
+SPACE_TYPES: tuple[str, ...] = ("Hyperscale", "AI Specialized", "Midsize/Colo", "Small")
 
 
-def _impute_pue(df: pd.DataFrame) -> pd.DataFrame:
-    n_missing = df["pue"].isna().sum()
-    if n_missing:
-        logger.info("Imputing %d missing PUE values with %.2f", n_missing, _DEFAULT_PUE)
-        df = df.copy()
-        df["pue"] = df["pue"].fillna(_DEFAULT_PUE)
-    return df
+def _slug(stype: str) -> str:
+    """Column-safe slug for a Space Type, e.g. 'AI Specialized' → 'ai_specialized'."""
+    return (stype.lower()
+                 .replace(" ", "_")
+                 .replace("/", "_")
+                 .replace("-", "_"))
 
 
 # ---------------------------------------------------------------------------
@@ -66,13 +65,17 @@ def _aggregate_to_county(
     recovery_efficiency: float,
     heating_cop: float,
     cooling_cop: float,
-) -> pd.DataFrame:
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
-    For each county (FIPS) compute:
-      - total IT load (MW)
-      - annual recoverable waste heat (kWh)
-      - useful heat delivered (kWh)
-      - useful cooling delivered (kWh)
+    For each county (FIPS) compute the heat/cooling aggregates plus a
+    composition breakdown (DC count and IT-load share per Space Type).
+
+    Returns
+    -------
+    (county_df, dc_df_enriched)
+        `county_df` — one row per FIPS with totals + per-type composition columns.
+        `dc_df_enriched` — per-DC rows with physics columns (saved as parquet so
+                           the dashboard can slice by Space Type without re-computing).
     """
     df = dc_df.dropna(subset=["fips", "it_load_mw"]).copy()
 
@@ -102,7 +105,33 @@ def _aggregate_to_county(
         )
     )
     county["fips"] = county["fips"].astype(str).str.zfill(5)
-    return county
+
+    # ── Per-type composition columns ───────────────────────────────────────
+    if "space_type" in df.columns:
+        for stype in SPACE_TYPES:
+            mask = df["space_type"] == stype
+            per_type = (
+                df[mask].groupby("fips")
+                        .agg(
+                            count=("name", "count"),
+                            it_mw=("it_load_mw", "sum"),
+                        )
+                        .reset_index()
+            )
+            per_type["fips"] = per_type["fips"].astype(str).str.zfill(5)
+            per_type = per_type.rename(columns={
+                "count": f"dc_count_{_slug(stype)}",
+                "it_mw": f"it_load_mw_{_slug(stype)}",
+            })
+            county = county.merge(per_type, on="fips", how="left")
+
+        for stype in SPACE_TYPES:
+            c_col = f"dc_count_{_slug(stype)}"
+            m_col = f"it_load_mw_{_slug(stype)}"
+            county[c_col] = county[c_col].fillna(0).astype(int)
+            county[m_col] = county[m_col].fillna(0.0)
+
+    return county, df
 
 
 # ---------------------------------------------------------------------------
@@ -133,6 +162,7 @@ def run_analysis(
     raw_dir:             Path  = DEFAULT_RAW_DIR,
     nrel_csv:            Path  = DEFAULT_NREL_CSV,
     output_csv:          Path  = DEFAULT_OUTPUT_CSV,
+    dc_parquet:          Path  = DEFAULT_DC_PARQUET,
     cache_dir:           Path  = DEFAULT_CACHE_DIR,
     recovery_efficiency: float = RECOVERY_EFFICIENCY,
     heating_cop:         float = HEATING_COP,
@@ -159,29 +189,33 @@ def run_analysis(
     """
     output_csv.parent.mkdir(parents=True, exist_ok=True)
 
-    # ── 1. Load DC data ──────────────────────────────────────────────────────
+    # ── 1. Load DC data (processed_dc_states: IT Load / PUE already imputed) ─
     logger.info("=== Step 1: Loading DC data from %s", raw_dir)
     dc = load_dc_data(raw_dir)
-    dc = _impute_pue(dc)
 
     # ── 2. Geocode → FIPS ────────────────────────────────────────────────────
     geocache = cache_dir / "dc_geocoded.parquet"
-    if geocache.exists() and not force_regeocode:
-        logger.info("=== Step 2: Loading cached geocoding from %s", geocache)
-        dc_geo = pd.read_parquet(geocache)
-        # If DC dataset has grown since cache was written, re-geocode
-        if len(dc_geo) != len(dc):
-            logger.info("  Cache stale (%d vs %d rows) — re-geocoding", len(dc_geo), len(dc))
-            dc_geo = add_fips(dc, cache_dir)
-            dc_geo.to_parquet(geocache, index=False)
-    else:
+    use_cache = geocache.exists() and not force_regeocode
+    if use_cache:
+        dc_geo_cached = pd.read_parquet(geocache)
+        # Invalidate cache if row count differs OR classifier columns are missing
+        # (older caches were built before the P1-P4 classifier existed).
+        stale = (len(dc_geo_cached) != len(dc)) or ("space_type" not in dc_geo_cached.columns)
+        if stale:
+            logger.info("  Cache stale — re-geocoding")
+            use_cache = False
+        else:
+            logger.info("=== Step 2: Loading cached geocoding from %s", geocache)
+            dc_geo = dc_geo_cached
+
+    if not use_cache:
         logger.info("=== Step 2: Reverse-geocoding %d DCs …", len(dc))
         dc_geo = add_fips(dc, cache_dir)
         dc_geo.to_parquet(geocache, index=False)
 
     # ── 3. Aggregate DC capacity to county ──────────────────────────────────
     logger.info("=== Step 3: Aggregating to county level")
-    county_dc = _aggregate_to_county(
+    county_dc, dc_enriched = _aggregate_to_county(
         dc_geo, recovery_efficiency, heating_cop, cooling_cop
     )
     logger.info("  %d counties with DC presence", len(county_dc))
@@ -241,5 +275,16 @@ def run_analysis(
 
     merged.to_csv(output_csv, index=False)
     logger.info("=== Done: %d county rows saved → %s", len(merged), output_csv)
+
+    # ── 9. Save DC-level enriched frame (for Space-Type slicing in dashboard) ─
+    dc_parquet.parent.mkdir(parents=True, exist_ok=True)
+    keep_cols = [c for c in (
+        "name", "state", "latitude", "longitude", "fips",
+        "it_load_mw", "pue", "space_type", "classification_source",
+        "website",
+        "recoverable_kwh", "heat_delivered_kwh", "cooling_delivered_kwh",
+    ) if c in dc_enriched.columns]
+    dc_enriched[keep_cols].to_parquet(dc_parquet, index=False)
+    logger.info("=== DC-level saved → %s  (%d rows)", dc_parquet, len(dc_enriched))
 
     return merged
