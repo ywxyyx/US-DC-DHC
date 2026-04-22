@@ -1,4 +1,4 @@
-Name,State,Latitude,Longitude,IT Load (MW),PUE,Website,Source URL,Space Type,Classification_Source,Annual_Heat_MWh
-FirstLight Williston VT,vermont,44.450544,-73.127403,1.0,1.91,https://www.firstlight.net/burlington-vt-data-center/?utm_source=datacentermap.com,https://www.datacentermap.com/usa/vermont/burlington/teljet-longhaul/,Small,P4,7884.0
-Power Shift StoweVT Data Center,vermont,44.4589482,-72.6929978,1.0,1.91,https://www.pshift.com/what-we-do/hosting-domains?utm_source=datacentermap.com,https://www.datacentermap.com/usa/vermont/stowe/stowevt/,Small,P4,7884.0
-Tech Vault South Burlington,vermont,44.4542045,-73.1417553,1.0,1.91,https://www.techvault.net?utm_source=datacentermap.com,https://www.datacentermap.com/usa/vermont/burlington/tech-space-inc/,Small,P1,7884.0
+Name,State,Latitude,Longitude,IT Load (MW),PUE,Website,Source URL,Space Type,Classification_Source,Is_Aggregated,Confidence_Score,Annual_Heat_MWh
+FirstLight Williston VT,vermont,44.450544,-73.127403,1.0,1.91,https://www.firstlight.net/burlington-vt-data-center/?utm_source=datacentermap.com,https://www.datacentermap.com/usa/vermont/burlington/teljet-longhaul/,Small,P4,False,1,7884.0
+Power Shift StoweVT Data Center,vermont,44.4589482,-72.6929978,1.0,1.91,https://www.pshift.com/what-we-do/hosting-domains?utm_source=datacentermap.com,https://www.datacentermap.com/usa/vermont/stowe/stowevt/,Small,P4,False,1,7884.0
+Tech Vault South Burlington,vermont,44.4542045,-73.1417553,1.0,1.91,https://www.techvault.net?utm_source=datacentermap.com,https://www.datacentermap.com/usa/vermont/burlington/tech-space-inc/,Small,P1,False,5,7884.0

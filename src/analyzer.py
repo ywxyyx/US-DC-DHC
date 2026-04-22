@@ -131,6 +131,27 @@ def _aggregate_to_county(
             county[c_col] = county[c_col].fillna(0).astype(int)
             county[m_col] = county[m_col].fillna(0.0)
 
+    # ── Phase 0 / Phase 2 rollups (aggregated rows + original IT Load share) ─
+    if "is_aggregated" in df.columns:
+        agg = (
+            df[df["is_aggregated"] == True]
+              .groupby("fips").size().reset_index(name="aggregated_count")
+        )
+        agg["fips"] = agg["fips"].astype(str).str.zfill(5)
+        county = county.merge(agg, on="fips", how="left")
+        county["aggregated_count"] = county["aggregated_count"].fillna(0).astype(int)
+
+    if "confidence_score" in df.columns:
+        orig = (
+            df[df["confidence_score"] == 5]
+              .groupby("fips")
+              .agg(original_it_load_mw=("it_load_mw", "sum"))
+              .reset_index()
+        )
+        orig["fips"] = orig["fips"].astype(str).str.zfill(5)
+        county = county.merge(orig, on="fips", how="left")
+        county["original_it_load_mw"] = county["original_it_load_mw"].fillna(0.0)
+
     return county, df
 
 
@@ -200,7 +221,11 @@ def run_analysis(
         dc_geo_cached = pd.read_parquet(geocache)
         # Invalidate cache if row count differs OR classifier columns are missing
         # (older caches were built before the P1-P4 classifier existed).
-        stale = (len(dc_geo_cached) != len(dc)) or ("space_type" not in dc_geo_cached.columns)
+        stale = (
+            (len(dc_geo_cached) != len(dc))
+            or ("space_type" not in dc_geo_cached.columns)
+            or ("confidence_score" not in dc_geo_cached.columns)
+        )
         if stale:
             logger.info("  Cache stale — re-geocoding")
             use_cache = False
@@ -281,6 +306,7 @@ def run_analysis(
     keep_cols = [c for c in (
         "name", "state", "latitude", "longitude", "fips",
         "it_load_mw", "pue", "space_type", "classification_source",
+        "is_aggregated", "confidence_score",
         "website",
         "recoverable_kwh", "heat_delivered_kwh", "cooling_delivered_kwh",
     ) if c in dc_enriched.columns]

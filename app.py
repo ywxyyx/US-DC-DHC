@@ -65,8 +65,9 @@ st.set_page_config(
 
 st.title("♻️ US Data Center Waste Heat Recovery Analysis")
 st.caption(
-    "Source: datacentermap.com (4 879 DCs, P1–P4 classified) × "
-    "NREL EULP ResStock/ComStock 2022/23. IT Load & PUE imputed from LBNL 2024 archetypes."
+    "Source: datacentermap.com (4,879 raw → 4,543 unique locations after 2 km "
+    "campus/building dedupe, P1–P4 classified) × NREL EULP ResStock/ComStock 2022/23. "
+    "IT Load & PUE imputed from LBNL 2024 archetypes."
 )
 
 # ---------------------------------------------------------------------------
@@ -98,6 +99,18 @@ with st.sidebar:
         options=list(SPACE_TYPES),
         default=list(SPACE_TYPES),
         help="Filter DCs by LBNL 2024 archetype. All four are included by default.",
+    )
+
+    st.subheader("🔒 Data Confidence")
+    only_original = st.checkbox(
+        "Only DCs with original IT Load (Confidence = 5)",
+        value=False,
+        help=(
+            "Confidence 5 = IT Load came directly from datacentermap.com. "
+            "Confidence 1 = IT Load was filled from the LBNL 2024 archetype "
+            "for the assigned Space Type. Toggling this on gives a conservative "
+            "lower-bound view using only reported capacity."
+        ),
     )
 
     st.divider()
@@ -170,26 +183,42 @@ def _filter_and_reaggregate(
     full_county_df: pd.DataFrame,
     dc_level_df:    pd.DataFrame,
     types:          list[str],
+    only_original:  bool = False,
 ) -> pd.DataFrame:
     """
-    Filter DCs by Space Type, re-aggregate per FIPS, and recompute coverage
-    against the NREL demand columns already present on `full_county_df`.
+    Filter DCs by Space Type (and optionally to original IT Load only),
+    re-aggregate per FIPS, and recompute coverage against the NREL demand
+    columns already present on `full_county_df`.
     Preserves county_name / state_abbr / county_label.
     """
     dc_sub = dc_level_df[dc_level_df["space_type"].isin(types)].copy()
+    if only_original and "confidence_score" in dc_sub.columns:
+        dc_sub = dc_sub[dc_sub["confidence_score"] == 5]
+
+    agg_dict = dict(
+        dc_count                    = ("name",                   "count"),
+        total_it_load_mw            = ("it_load_mw",             "sum"),
+        total_recoverable_kwh       = ("recoverable_kwh",        "sum"),
+        total_heat_delivered_kwh    = ("heat_delivered_kwh",     "sum"),
+        total_cooling_delivered_kwh = ("cooling_delivered_kwh",  "sum"),
+    )
+    if "is_aggregated" in dc_sub.columns:
+        agg_dict["aggregated_count"] = ("is_aggregated", "sum")
+    if "confidence_score" in dc_sub.columns:
+        # Sum of IT Load from rows with confidence == 5 (original reports)
+        dc_sub["_orig_mw"] = dc_sub["it_load_mw"].where(
+            dc_sub["confidence_score"] == 5, 0.0
+        )
+        agg_dict["original_it_load_mw"] = ("_orig_mw", "sum")
 
     agg = (
         dc_sub.dropna(subset=["fips"])
               .groupby("fips", as_index=False)
-              .agg(
-                  dc_count                  = ("name",                  "count"),
-                  total_it_load_mw          = ("it_load_mw",            "sum"),
-                  total_recoverable_kwh     = ("recoverable_kwh",       "sum"),
-                  total_heat_delivered_kwh  = ("heat_delivered_kwh",    "sum"),
-                  total_cooling_delivered_kwh=("cooling_delivered_kwh", "sum"),
-              )
+              .agg(**agg_dict)
     )
     agg["fips"] = agg["fips"].astype(str).str.zfill(5)
+    if "aggregated_count" in agg.columns:
+        agg["aggregated_count"] = agg["aggregated_count"].fillna(0).astype(int)
 
     demand_cols = [
         "fips", "county_name", "state_abbr", "county_label",
@@ -221,11 +250,19 @@ if not selected_types:
     st.warning("Select at least one Space Type in the sidebar.")
     st.stop()
 
-if set(selected_types) == set(SPACE_TYPES):
+_full_types = set(selected_types) == set(SPACE_TYPES)
+if _full_types and not only_original:
     df = df_full
 else:
-    df = _filter_and_reaggregate(df_full, dc_df, selected_types)
-    st.caption(f"🔍 Filtered to: {' · '.join(selected_types)}  ({len(df)} counties)")
+    df = _filter_and_reaggregate(
+        df_full, dc_df, selected_types, only_original=only_original
+    )
+    filter_bits = []
+    if not _full_types:
+        filter_bits.append(" · ".join(selected_types))
+    if only_original:
+        filter_bits.append("original IT Load only (Confidence=5)")
+    st.caption(f"🔍 Filtered to: {'; '.join(filter_bits)}  ({len(df)} counties)")
 
 # ---------------------------------------------------------------------------
 # KPI cards
@@ -245,6 +282,32 @@ col3.metric("Total Heating Demand",
             help="Sum of county annual space-heating demand expressed as average power")
 col4.metric("Counties with DC Presence", f"{counties_w_dc:,}")
 col5.metric("Median Heating Coverage",   f"{median_hcov:.1f} %")
+
+# Second KPI row — Phase 0 + confidence provenance
+col6, col7 = st.columns(2)
+agg_total = (
+    int(df["aggregated_count"].sum())
+    if "aggregated_count" in df.columns else None
+)
+orig_mw = (
+    df["original_it_load_mw"].sum()
+    if "original_it_load_mw" in df.columns else None
+)
+orig_pct = (100 * orig_mw / total_it_mw) if (orig_mw is not None and total_it_mw) else None
+
+col6.metric(
+    "Phase 0 Aggregated Rows",
+    f"{agg_total:,}" if agg_total is not None else "—",
+    help="Unique locations produced by collapsing campus/building clusters within 2 km.",
+)
+col7.metric(
+    "Original IT Load Share",
+    f"{orig_pct:.0f} %" if orig_pct is not None else "—",
+    help=(
+        "Share of total IT Load that came from reported capacity "
+        "(Confidence = 5). The remainder is imputed from LBNL 2024 archetypes."
+    ),
+)
 
 # ── Composition chips — Space Type IT-Load share within current filter ──────
 type_breakdown = (
@@ -407,7 +470,40 @@ with tab_types:
         fig_n.update_layout(showlegend=False, height=360, margin=dict(l=10, r=10, t=40, b=10))
         st.plotly_chart(fig_n, use_container_width=True)
 
-    # 2) Classification-source breakdown (QA visibility)
+    # 2) Confidence breakdown — original reported IT Load vs archetype-imputed
+    if "confidence_score" in dc_all.columns:
+        conf = (
+            dc_all.assign(
+                confidence_label=dc_all["confidence_score"].map(
+                    {5: "Original (reported)", 1: "Imputed (archetype)"}
+                )
+            )
+            .groupby(["space_type", "confidence_label"])
+            .size()
+            .reset_index(name="count")
+        )
+        fig_conf = px.bar(
+            conf, x="space_type", y="count", color="confidence_label",
+            text="count",
+            title="IT Load Confidence by Space Type (original reports vs archetype imputations)",
+            labels={"space_type": "Space Type", "count": "# Data Centers",
+                    "confidence_label": "IT Load Source"},
+            category_orders={
+                "space_type": list(SPACE_TYPES),
+                "confidence_label": ["Original (reported)", "Imputed (archetype)"],
+            },
+            color_discrete_map={
+                "Original (reported)": "#2ca02c",  # green
+                "Imputed (archetype)": "#d62728",  # red
+            },
+        )
+        fig_conf.update_traces(textposition="inside")
+        fig_conf.update_layout(
+            barmode="stack", height=340, margin=dict(l=10, r=10, t=40, b=10),
+        )
+        st.plotly_chart(fig_conf, use_container_width=True)
+
+    # 3) Classification-source breakdown (QA visibility)
     if "classification_source" in dc_all.columns:
         src = (
             dc_all["classification_source"].value_counts()
@@ -431,7 +527,7 @@ with tab_types:
         fig_src.update_layout(showlegend=False, height=340, margin=dict(l=10, r=10, t=40, b=10))
         st.plotly_chart(fig_src, use_container_width=True)
 
-    # 3) Top-10 counties by IT Load with stacked Space-Type composition
+    # 4) Top-10 counties by IT Load with stacked Space-Type composition
     comp_cols = {f"it_load_mw_{s.lower().replace(' ', '_').replace('/', '_')}": s
                  for s in SPACE_TYPES}
     comp_cols_present = {c: s for c, s in comp_cols.items() if c in df_full.columns}
@@ -500,21 +596,31 @@ with tab_scatter:
 # Data table — sortable, filterable
 # ---------------------------------------------------------------------------
 with tab_table:
+    # Derived "Original IT Load %" column per county
+    table_df = df.copy()
+    if {"original_it_load_mw", "total_it_load_mw"}.issubset(table_df.columns):
+        table_df["original_it_load_pct"] = (
+            100 * table_df["original_it_load_mw"] / table_df["total_it_load_mw"]
+        ).fillna(0)
+
     display_cols = [
         "county_label", "fips", "dc_count",
-        "total_it_load_mw",
+        "aggregated_count",
+        "total_it_load_mw", "original_it_load_pct",
         "heat_delivered_mw",    "heating_demand_mw",
         "cooling_delivered_mw", "cooling_demand_mw",
         "heating_coverage_pct", "cooling_coverage_pct",
     ]
-    show_cols = [c for c in display_cols if c in df.columns]
+    show_cols = [c for c in display_cols if c in table_df.columns]
 
     # Rename for readability
     col_labels = {
         "county_label":          "County",
         "fips":                  "FIPS",
         "dc_count":              "# DCs",
+        "aggregated_count":      "# Aggregated",
         "total_it_load_mw":      "IT Load (MW)",
+        "original_it_load_pct":  "Original IT Load (%)",
         "heat_delivered_mw":     "Heat Delivered (MW)",
         "heating_demand_mw":     "Heat Demand (MW)",
         "cooling_delivered_mw":  "Cooling Delivered (MW)",
@@ -525,7 +631,7 @@ with tab_table:
 
     min_cov = st.slider("Filter: min heating coverage (%)", 0, 200, 0, step=5)
     filtered = (
-        df[df["heating_coverage_pct"] >= min_cov][show_cols]
+        table_df[table_df["heating_coverage_pct"] >= min_cov][show_cols]
         .rename(columns=col_labels)
         .sort_values("Heating Coverage (%)", ascending=False)
         .reset_index(drop=True)
@@ -536,7 +642,13 @@ with tab_table:
         use_container_width=True,
         height=420,
         column_config={
+            "# Aggregated":          st.column_config.NumberColumn(
+                                        format="%d",
+                                        help="Rows that came from Phase 0 campus/building dedupe."),
             "IT Load (MW)":          st.column_config.NumberColumn(format="%.1f"),
+            "Original IT Load (%)":  st.column_config.ProgressColumn(
+                                        min_value=0, max_value=100, format="%.0f %%",
+                                        help="Share of county IT Load from reported capacity (Confidence=5)."),
             "Heat Delivered (MW)":   st.column_config.NumberColumn(format="%.1f"),
             "Heat Demand (MW)":      st.column_config.NumberColumn(format="%.1f"),
             "Cooling Delivered (MW)":st.column_config.NumberColumn(format="%.1f"),

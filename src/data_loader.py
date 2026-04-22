@@ -29,6 +29,8 @@ COLUMN_ALIASES: dict[str, list[str]] = {
     # Produced by src/classifier.py — present in processed_dc_states/*.csv
     "space_type":            ["space type", "space_type"],
     "classification_source": ["classification_source", "classification source"],
+    "is_aggregated":         ["is_aggregated", "is aggregated"],
+    "confidence_score":      ["confidence_score", "confidence score"],
 }
 
 
@@ -92,6 +94,16 @@ def load_dc_data(raw_dir: Path) -> pd.DataFrame:
     # Convert numeric columns
     for col in ("latitude", "longitude", "it_load_mw", "pue"):
         combined[col] = pd.to_numeric(combined[col], errors="coerce")
+
+    if "confidence_score" in combined.columns:
+        combined["confidence_score"] = pd.to_numeric(
+            combined["confidence_score"], errors="coerce"
+        )
+    if "is_aggregated" in combined.columns:
+        combined["is_aggregated"] = (
+            combined["is_aggregated"].astype(str).str.lower()
+                    .isin(["true", "1", "yes"])
+        )
 
     # Drop rows without coordinates (can't geocode)
     before = len(combined)
